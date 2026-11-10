@@ -12,13 +12,12 @@ import org.firstinspires.ftc.teamcode.subsystem.Subsystem;
 import java.util.Locale;
 
 public class Odometry extends Subsystem {
-    private Telemetry telemetry;
+
 
     public GoBildaPinpointDriver odo; // Declare OpMode member for the Odometry Computer
 
 
-    public void init(HardwareMap hardwareMap, Telemetry telemetry, Pose2D initialPose){
-        this.telemetry = telemetry;
+    public void init(HardwareMap hardwareMap, Pose2D initialPose){
         odo = hardwareMap.get(GoBildaPinpointDriver.class,"odo");
         odo.setOffsets(84.0, 0.0, DistanceUnit.MM); //these are tuned for 3110-0002-0001 Product Insight #1
         odo.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
@@ -46,6 +45,9 @@ public class Odometry extends Subsystem {
     }
     public double getHeading(){
         return odo.getHeading(AngleUnit.DEGREES);
+    }
+    public double getHeading(AngleUnit angleUnit){
+        return odo.getHeading(angleUnit);
     }
 
     public void resetPosition(){
