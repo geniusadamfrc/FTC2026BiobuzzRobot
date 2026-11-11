@@ -35,6 +35,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -42,6 +43,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.subsystem.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystem.Odometry;
+import org.firstinspires.ftc.teamcode.subsystem.Shooter;
 
 /*
  * This file contains an example of a Linear "OpMode".
@@ -80,16 +82,16 @@ public class SimpleDriveWithIntake extends LinearOpMode {
 
     private DcMotor intake  = null;
     private DcMotor transfer = null;
-    private DcMotorEx pollenShooter = null;
 
 
     private double speed;
-    private double speedChange = 0.2;
 
     public static final double TRANSFER_POWER = 0.45;
 
     private Drivetrain drivetrain;
     private Odometry odometry;
+    private Shooter shooter;
+    private boolean fieldRelativeDrive =true;
 
     @Override
     public void runOpMode() {
@@ -98,15 +100,13 @@ public class SimpleDriveWithIntake extends LinearOpMode {
         drivetrain.init(hardwareMap);
         odometry = new Odometry();
         odometry.init(hardwareMap, new Pose2D(DistanceUnit.INCH,0,0, AngleUnit.RADIANS,0));
-
+        shooter = new Shooter();
+        shooter.init(hardwareMap);
         // Initialize the hardware variables. Note that the strings used here must correspond
         // to the names assigned during the robot configuration step on the DS or RC devices.
 
         intake = hardwareMap.get(DcMotor.class, "intake");
         transfer = hardwareMap.get(DcMotor.class, "transfer");
-        pollenShooter = hardwareMap.get(DcMotorEx.class, "pollenShooter");
-        pollenShooter.setDirection((DcMotor.Direction.REVERSE));
-        pollenShooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         speed = 1480;
 
@@ -119,36 +119,42 @@ public class SimpleDriveWithIntake extends LinearOpMode {
 
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
-            double max;
+            odometry.loop();
 
-            // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
-            double axial   = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
-            double lateral =  gamepad1.left_stick_x;
-            double yaw     =  gamepad1.right_stick_x;
+            if (fieldRelativeDrive) {
+                double axial   = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
+                double lateral =  gamepad1.left_stick_x;
+                double yaw     =  gamepad1.right_stick_x;
+                drivetrain.driveFieldRelative(axial, lateral, yaw, odometry.getHeading(AngleUnit.RADIANS));
+                telemetry.addData("Drive" , "Field Relative");
+                telemetry.addData("Heading", odometry.getHeading(AngleUnit.RADIANS));
 
-            drivetrain.driveRobotRelative(axial,lateral,yaw);
-            //drivetrain.driveFieldRelative(axial, lateral, yaw, odometry.getHeading(AngleUnit.RADIANS));
+            }
+            else{
+                // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
+                double axial = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
+                double lateral = gamepad1.left_stick_x;
+                double yaw = gamepad1.right_stick_x;
+
+                drivetrain.driveRobotRelative(axial, yaw, lateral);
+                telemetry.addData("Drive" , "Robot Relative");
+            }
 
 
 
             if (gamepad1.dpad_up){
-                speed+=speedChange;
+                speed+=0.2;
             }else if (gamepad1.dpad_down){
-                speed-=speedChange;
+                speed-= 0.2;
             }
-/*            if (gamepad1.dpad_left){
-                speed+=5;
-            }else if (gamepad1.dpad_right){
-                speed-=5;
-            }
-            */
             if (gamepad1.a || gamepad2.a){
-                pollenShooter.setVelocity(speed);
+                shooter.startShooting(speed);
             }else if (gamepad1.b || gamepad2.b){
-                pollenShooter.setPower(0);
+                shooter.setIdleShooter();
             }
 
-            intake.setPower(gamepad1.left_trigger - gamepad1.right_trigger);
+            intake.setPower(gamepad1.left_trigger - gamepad1.right_trigger
+            + gamepad2.left_trigger - gamepad2.right_trigger);
 
 
             if (gamepad1.left_bumper || gamepad2.left_bumper) {
@@ -156,19 +162,17 @@ public class SimpleDriveWithIntake extends LinearOpMode {
                 transfer.setPower(1.0);
                 telemetry.addData("Transfer State","TRANSFERRING");
             }
-            else if (gamepad1.right_bumper || gamepad2.right_bumper){
+            else if (shooter.isReadyForShot() && (gamepad1.right_bumper || gamepad2.right_bumper)){
                 transfer.setPower(-TRANSFER_POWER);
             } else {
                 transfer.setPower(0.0);
             }
 
-
-
-            telemetry.addData("Target Shooter Speed", speed);
-            telemetry.addData("Actual Shooter Speed", pollenShooter.getVelocity());
-            telemetry.addData("Speed Change",  speedChange);
+            telemetry.addData("Target Speed", speed);
+            shooter.writeSpeeds(telemetry);
             // Show the elapsed game time and wheel power.
             telemetry.addData("Status", "Run Time: " + runtime.toString());
             telemetry.update();
         }
-    }}
+    }
+}
