@@ -120,6 +120,7 @@ public class SimpleDriveWithIntake extends LinearOpMode {
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
             odometry.loop();
+            shooter.loop();
 
             if (fieldRelativeDrive) {
                 double axial   = -gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value

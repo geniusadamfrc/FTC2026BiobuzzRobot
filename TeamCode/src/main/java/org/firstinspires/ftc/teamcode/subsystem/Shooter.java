@@ -18,11 +18,12 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import java.util.List;
 
 public class Shooter extends Subsystem {
-    public final static String FLYWHEEL_NAME = "pollemShooter";
+    public final static String FLYWHEEL_NAME = "pollenShooter";
 
-    public final static double DEFAULT_TARGET_SPEED = 1480;
-    public final static double DEFAULT_SPEED_TOLERANCE = 30.0;
+    public final static double DEFAULT_TARGET_SPEED = 1440;
+    public final static double DEFAULT_SPEED_TOLERANCE = 45.0;
     public final static int ITERATIONS_TO_ASSUME_AT_SPEED = 4;
+    public final static int ITERATIONS_BEFORE_NOT_AT_SPEED = 6;
 
     private DcMotorEx shooter;
 
@@ -32,13 +33,19 @@ public class Shooter extends Subsystem {
 
     private ShooterState shooterState;
 
+    private double p=15;
+    private double i = 0.0072;
+    private double d = 0.0178;
+    private double f = 13;
+
     public void init(HardwareMap hardwareMap){
         shooter = hardwareMap.get(DcMotorEx.class, FLYWHEEL_NAME);
 
         shooter.setDirection(DcMotorSimple.Direction.REVERSE);
         shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooter.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(56, 0.8,0,10));
+        shooter.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(p,i,d,f));
         this.speedTolerance = DEFAULT_SPEED_TOLERANCE;
+        this.shooterState = ShooterState.IDLE;
 
     }
 
@@ -46,6 +53,7 @@ public class Shooter extends Subsystem {
         this.speedTolerance = speedTolerance;
     }
     public void writeSpeeds(Telemetry telemetry){
+        telemetry.addData("Shooter State", shooterState.name());
         telemetry.addData("Target Speed", targetSpeed);
         telemetry.addData("Actual Speeds", shooter.getVelocity());
         //telemetry.addData("Right Speed", rightShooter.getVelocity());
@@ -81,6 +89,7 @@ public class Shooter extends Subsystem {
         if (isAtSpeed()) {
             if (iterationsForSpeed >= ITERATIONS_TO_ASSUME_AT_SPEED) {
                 shooterState = ShooterState.READY_FOR_SHOT;
+                iterationsForSpeed = 0;
                 doReadyForShot();
             }else {
                 iterationsForSpeed++;
@@ -92,9 +101,17 @@ public class Shooter extends Subsystem {
 
     }
     private void doReadyForShot(){
-        iterationsForSpeed = 0;
         computeTargetSpeed();
-        if (!isAtSpeed()) shooterState = ShooterState.SPINNING_UP;
+        if (!isAtSpeed()){
+            if(iterationsForSpeed > ITERATIONS_BEFORE_NOT_AT_SPEED) {
+                shooterState = ShooterState.SPINNING_UP;
+                iterationsForSpeed = 0;
+            }else{
+                iterationsForSpeed++;
+            }
+        }else{
+            iterationsForSpeed=0;
+        }
     }
 
     private void computeTargetSpeed(){
@@ -114,6 +131,10 @@ public class Shooter extends Subsystem {
     }
     public double getTargetSpeed() {return targetSpeed;}
     public void setTargetSpeed(double targetSpeed) {this.targetSpeed = targetSpeed;}
+
+    public void setVelocityPIDFCoefficients(double p, double i, double d, double f) {
+        shooter.setVelocityPIDFCoefficients(p,i,d,f);
+    }
 
     private enum ShooterState {
         IDLE, SPINNING_UP, READY_FOR_SHOT, MANUAL_CONTROL
